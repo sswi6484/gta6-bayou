@@ -1,91 +1,65 @@
-// Keyboard input: held keys as a direction, plus edge-triggered actions.
-// WASD and arrows drive and walk; E enters/exits a vehicle and interacts;
-// F refuels; Space is handbrake (and confirm on menus); P pauses; M mutes.
-
+// Keyboard and pointer input for Bayou. Held keys steer (WASD / arrows); E enters or exits a
+// vehicle; Space is the brake/handbrake and the confirm key; P pauses; M mutes; one-shot presses
+// are queued as bit flags and taken once, so a press between two frames is never lost.
 export const ACTION_CONFIRM = 1;
 export const ACTION_PAUSE = 2;
 export const ACTION_ENTER = 4;
-export const ACTION_REFUEL = 8;
-export const ACTION_MUTE = 16;
+export const ACTION_MUTE = 8;
+export const ACTION_NEW = 16;
 
-const KEYMAP = {
-  KeyW: 'up', ArrowUp: 'up',
-  KeyS: 'down', ArrowDown: 'down',
-  KeyA: 'left', ArrowLeft: 'left',
-  KeyD: 'right', ArrowRight: 'right',
-  Space: 'brake',
-  ShiftLeft: 'run', ShiftRight: 'run',
-};
+const UP = new Set(['ArrowUp', 'KeyW']);
+const DOWN = new Set(['ArrowDown', 'KeyS']);
+const LEFT = new Set(['ArrowLeft', 'KeyA']);
+const RIGHT = new Set(['ArrowRight', 'KeyD']);
+const CONFIRM = new Set(['Space', 'Enter']);
+const PAUSE = new Set(['KeyP', 'Escape']);
+const ENTER = new Set(['KeyE']);
+const MUTE = new Set(['KeyM']);
+const NEW = new Set(['KeyN']);
 
-export function createInput(canvas) {
-  const held = new Set();
-  let queued = 0;
-  let lastDirection = { x: 0, y: 0 };
+export function createInput(target) {
+  const held = { up: false, down: false, left: false, right: false, brake: false };
+  let actions = 0;
 
-  function onKeyDown(event) {
-    const name = KEYMAP[event.code];
-    if (name) {
-      held.add(name);
-      event.preventDefault();
-    }
-    if (event.code === 'Space' || event.code === 'Enter') queued |= ACTION_CONFIRM;
-    if (event.code === 'KeyP' || event.code === 'Escape') queued |= ACTION_PAUSE;
-    if (event.code === 'KeyE') queued |= ACTION_ENTER;
-    if (event.code === 'KeyF') queued |= ACTION_REFUEL;
-    if (event.code === 'KeyM') queued |= ACTION_MUTE;
-  }
-  function onKeyUp(event) {
-    const name = KEYMAP[event.code];
-    if (name) held.delete(name);
-  }
-  window.addEventListener('keydown', onKeyDown);
-  window.addEventListener('keyup', onKeyUp);
-
-  // Clicking the canvas also confirms (start the game from the title screen).
-  canvas.addEventListener('pointerdown', () => {
-    queued |= ACTION_CONFIRM;
+  window.addEventListener('keydown', (event) => {
+    if (UP.has(event.code)) held.up = true;
+    else if (DOWN.has(event.code)) held.down = true;
+    else if (LEFT.has(event.code)) held.left = true;
+    else if (RIGHT.has(event.code)) held.right = true;
+    else if (CONFIRM.has(event.code)) {
+      held.brake = true;
+      if (!event.repeat) actions |= ACTION_CONFIRM;
+    } else if (PAUSE.has(event.code)) {
+      if (!event.repeat) actions |= ACTION_PAUSE;
+    } else if (ENTER.has(event.code)) {
+      if (!event.repeat) actions |= ACTION_ENTER;
+    } else if (MUTE.has(event.code)) {
+      if (!event.repeat) actions |= ACTION_MUTE;
+    } else if (NEW.has(event.code)) {
+      if (!event.repeat) actions |= ACTION_NEW;
+    } else return;
+    event.preventDefault();
+  });
+  window.addEventListener('keyup', (event) => {
+    if (UP.has(event.code)) held.up = false;
+    else if (DOWN.has(event.code)) held.down = false;
+    else if (LEFT.has(event.code)) held.left = false;
+    else if (RIGHT.has(event.code)) held.right = false;
+    else if (CONFIRM.has(event.code)) held.brake = false;
+  });
+  window.addEventListener('blur', () => {
+    held.up = held.down = held.left = held.right = held.brake = false;
+  });
+  target.addEventListener('pointerdown', () => {
+    actions |= ACTION_CONFIRM;
   });
 
-  /** The current drive/walk direction, -1/0/1 on each axis. */
-  function direction() {
-    const x = (held.has('right') ? 1 : 0) - (held.has('left') ? 1 : 0);
-    const y = (held.has('down') ? 1 : 0) - (held.has('up') ? 1 : 0);
-    lastDirection = { x, y };
-    return lastDirection;
-  }
-
-  /** Whether the run key is held (on foot: run; in a vehicle: nothing). */
-  function running() {
-    return held.has('run');
-  }
-
-  /** Whether the handbrake is held. */
-  function braking() {
-    return held.has('brake');
-  }
-
-  /** Actions pressed since the last call (edge-triggered). */
-  function takeActions() {
-    const out = queued;
-    queued = 0;
-    return out;
-  }
-
-  /** Test/debug: release every held key. */
-  function releaseAll() {
-    held.clear();
-  }
-
-  /** Test/debug: pretend keys are held (used by the autopilot and play-tests). */
-  function setHeld(name, value) {
-    if (value) held.add(name);
-    else held.delete(name);
-  }
-
-  /** Test/debug: queue an edge-triggered action (used by the autopilot). */
-  function queueAction(action) {
-    queued |= action;
-  }
-
-  return { direction, running, braking, takeActions, setHeld, queueAction, releaseAll };
+  return {
+    held,
+    takeActions() {
+      const taken = actions;
+      actions = 0;
+      return taken;
+    },
+  };
 }

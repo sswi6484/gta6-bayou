@@ -1,12 +1,12 @@
-// Bayou — an original open-world crime game for make.fun gta6-01 (Node 22,
-// standard library only). The game is this directory's game/ folder: plain
-// static files a desktop browser loads offline (game/index.html and its ES
-// modules, no library and no network request). The program hands it in: it
-// copies game/ and screenshots/ from beside this file to /output and writes
-// /output/dossier.json, the summary the judge reads, with the vendored make.fun
-// library. Bayou is a swamp river-delta town — boat chases on the river, fog
-// over the cypress groves, levee roads, five story missions, traffic, police,
-// a wanted level, a HUD with a minimap and a save.
+// Bayou — an original open-world crime game for make.fun gta6-01 (Node 22, standard library
+// only): the game is this directory's game/ folder, plain static files a desktop browser loads
+// offline (game/index.html and its ES modules, no library and no network request), and the program
+// hands it in. It copies game/ and screenshots/ from beside this file to /output and writes
+// /output/dossier.json, the summary the judge reads, with the vendored make.fun library. The game:
+// Remy "Catfish" Broussard, a riverboat smuggler who owes Mama Odette, runs five story missions
+// across a swamp river-delta town — levee-road driving, boat chases on the river, swamp-fog
+// visibility, water-vs-land escapes, wanted 0–5 with police cars and boats, 12 swamp caches and a
+// river time trial, HUD with minimap, save, and synthesized WebAudio sound.
 //
 // Serve it locally with `node serve.ts`, then open http://localhost:8080.
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:

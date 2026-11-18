@@ -1,52 +1,23 @@
 # Bayou — Open World Crime
 
-[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
-[![rank](https://make.fun/badge/gta6-01/sswi6484/gta6-bayou/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
-[![reward](https://make.fun/badge/gta6-01/sswi6484/gta6-bayou/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![make.fun](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01)
+[![Rank](https://make.fun/badge/gta6-01/sswi6484/gta6-bayou/rank.svg)](https://make.fun/bounty/gta6-01)
+[![Reward](https://make.fun/badge/gta6-01/sswi6484/gta6-bayou/reward.svg)](https://make.fun/bounty/gta6-01)
 
-An original open-world crime game for [make.fun gta6-01](https://make.fun/bounty/gta6-01).
+An original open-world crime game for [make.fun gta6-01](https://make.fun/bounty/gta6-01), built with plain HTML5 canvas and vanilla JavaScript — no libraries, no network requests.
 
-**Gator Bend** is a swamp river-delta town on the water's edge — levee roads,
-bayous and backwaters, stilt houses, shrimp boats, a riverfront shanty town and
-fog over the cypress groves. You are **Remy "Catfish" Broussard**, a riverboat
-smuggler who owes **Mama Odette**, the bayou boss. **Sheriff Delacroix** wants
-your plate.
+**The story:** Remy "Catfish" Broussard is a riverboat smuggler who owes Mama Odette, the bayou boss. Run her hauls across a swamp river-delta town — levees, bayous and backwaters, stilt houses, shrimp boats, a riverfront shanty town, foggy swamp roads.
 
-## What is in the game
+**What is in the game:**
+- A 3200×2400 open world to explore on foot, by car and by boat
+- 5 story missions with payouts ($150–$1,000): First Haul, Fog Run, Levee Dodge, Hot Pursuit, The Big Haul
+- Boat chases on the river, swamp-fog visibility, levee-road driving, water-vs-land escape routes
+- Wanted level 0–5 with police cars and police boats that chase and ram
+- 12 swamp caches (+$25 each) and a river time trial (6 gates, 95 seconds, +$150)
+- Traffic and pedestrians, cars to steal, HUD with minimap, localStorage save, synthesized WebAudio sound (engine, siren, pickups)
 
-- **An open world to explore on foot, by car and by boat** — the river and the
-  bayou channels are the fast way around; the levee roads are the dry one.
-- **Five story missions** ($150–$1,000): First Haul, Fog Run, Levee Dodge
-  (dodge the sheriff checkpoint on the Main Street bridge), Hot Pursuit (lose
-  wanted 3, then slip into the safehouse), The Big Haul (three drops with the
-  heat on).
-- **Side work**: 12 swamp caches (+$25) and a river time trial — 6 gates down
-  the river in 95 seconds ($150).
-- **Wanted level 0–5** with police cruisers on the roads and police boats on
-  the river; busted and wasted recoveries; fuel to manage (refuel at Gas & Go
-  or the Marina).
-- **Traffic and pedestrians**, cars to steal and drive, boats to board, a HUD
-  with a minimap, localStorage save, and synthesized WebAudio (engine, siren,
-  jingles — no audio files).
-- **Swamp fog and a day/night cycle**: the fog rolls over the groves, and at
-  night your headlights are the only light on the river.
+**Controls:** WASD / arrows to drive or walk · E to enter or exit a car or boat · Space to brake · P to pause · M to mute · N for a new game.
 
-## Controls
+**Play it:** serve `game/` with any static server (for example `node serve.ts`, then open http://localhost:8080) — `game/index.html` opens in desktop Chrome and plays offline.
 
-WASD / arrows — drive, sail and walk • E — enter & exit a vehicle • F — refuel
-near Gas & Go or the Marina • Space — handbrake / confirm • P — pause •
-M — mute
-
-## Play it
-
-```sh
-node serve.ts   # serves game/ at http://localhost:8080
-```
-
-Static files only — `game/index.html` opens in desktop Chrome with no network
-requests. `main.ts` (Node 22 stdlib) copies `game/` and `screenshots/` to
-`/output` and writes `dossier.json`.
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+**Screenshots:** `screenshots/` holds 4 real renders of the game (cover, mission, chase, night).

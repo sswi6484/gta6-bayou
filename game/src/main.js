@@ -1,31 +1,25 @@
-// Boot and the one loop: input is read every frame, the world advances in fixed
-// 1/60 s steps (several in a slow frame, none in a fast one), and the renderer
-// paints what is there. The game moves between six screens: title, play, paused,
-// busted, wasted and all done.
+// Boot and the one loop: input is read every frame, the world advances in fixed 1/60 s steps
+// (several in a slow frame, none in a fast one), and the renderer paints what is there. Screens:
+// title, play, paused, busted, wasted, done. Progress (cash, missions, caches) autosaves to
+// localStorage; Space starts or continues, N starts a new game from the title.
 //
-// ?seed=N fixes the world. ?shot=cover|mission|chase|night (with &seed=N) stages
-// that scene instead of running the loop, paints it twice and sets
-// window.__shotReady for a screenshot.
-
-import { STEP } from './config.js';
+// ?seed=N fixes the random pattern. ?shot=start|mission|chase|night (with &seed=N) stages that
+// scene instead of running the loop, paints it twice and sets window.__shotReady.
+import { BEST_KEY, SAVE_KEY, STEP } from './config.js';
 import { createRandom } from './random.js';
-import { createWorld, resetWorld } from './world.js';
 import {
-  ACTION_CONFIRM, ACTION_PAUSE, ACTION_ENTER, ACTION_REFUEL, ACTION_MUTE, createInput,
-} from './input.js';
+  createWorld, EVENT_ALL_DONE, EVENT_BUSTED, EVENT_CASH, EVENT_CRASH, EVENT_MISSION,
+  EVENT_PICKUP, EVENT_WASTED,
+} from './world.js';
+import { ACTION_CONFIRM, ACTION_ENTER, ACTION_MUTE, ACTION_NEW, ACTION_PAUSE, createInput } from './input.js';
 import { createAudio } from './audio.js';
-import { stepPlayer, bustPlayer, wastePlayer } from './player.js';
-import { stepTraffic } from './traffic.js';
-import { stepPolice } from './police.js';
-import { stepMissions } from './missions.js';
 import {
-  createRenderer, SCREEN_TITLE, SCREEN_PLAY, SCREEN_PAUSED,
-  SCREEN_BUSTED, SCREEN_WASTED, SCREEN_DONE,
+  createRenderer, SCREEN_BUSTED, SCREEN_DONE, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE,
+  SCREEN_WASTED,
 } from './render.js';
-import { stageShot, autopilot, fleePilot } from './shots.js';
-import { saveGame, loadGame, applySave } from './save.js';
+import { stageShot } from './shots.js';
 
-/** The longest frame the loop catches up on; a longer stall (a hidden tab) is dropped, not replayed. */
+/** The longest frame the loop catches up on; a longer stall (a hidden tab) is dropped. */
 const MAX_FRAME = 0.25;
 
 const params = new URLSearchParams(window.location.search);
@@ -35,85 +29,50 @@ const seed = Number.isInteger(seedParam) ? seedParam : Math.floor(Math.random() 
 
 const canvas = document.getElementById('game');
 const status = document.getElementById('status');
-const random = createRandom(seed);
-const state = createWorld(random);
-const input = createInput(canvas);
+const world = createWorld(createRandom(seed));
 const renderer = createRenderer(canvas);
 const audio = createAudio();
 
-const saved = loadGame();
-if (saved) applySave(state, saved);
-let best = saved ? saved.cash : 0;
-
-/** Parse the edge-triggered action bitmask into named booleans. */
-function readActions() {
-  const bits = input.takeActions();
-  return {
-    confirm: !!(bits & ACTION_CONFIRM),
-    pause: !!(bits & ACTION_PAUSE),
-    enter: !!(bits & ACTION_ENTER),
-    refuel: !!(bits & ACTION_REFUEL),
-    mute: !!(bits & ACTION_MUTE),
-  };
+function readSave() {
+  try {
+    const raw = window.localStorage.getItem(SAVE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+function writeSave() {
+  try {
+    window.localStorage.setItem(SAVE_KEY, JSON.stringify(world.serialize()));
+  } catch {
+    // Storage can be off (private windows): progress then lasts this visit only.
+  }
+}
+function readBest() {
+  try {
+    return Number.parseInt(window.localStorage.getItem(BEST_KEY) ?? '0', 10) || 0;
+  } catch {
+    return 0;
+  }
+}
+function saveBest(value) {
+  try {
+    window.localStorage.setItem(BEST_KEY, String(value));
+  } catch {
+    // See writeSave.
+  }
 }
 
-/** One fixed world step: player, traffic, police, missions, timers, sound.
- * `acts` is the edge-triggered actions for this step (only the first step of a
- * frame carries them, so one key press never fires twice). */
-function stepWorld(dt, acts) {
-  state.time += dt;
-  if (state.messageTimer > 0) state.messageTimer -= dt;
-  if (acts.mute) {
-    audio.setMuted(!audio.muted);
-    state.message = audio.muted ? 'Sound off (M to turn back on).' : 'Sound on.';
-    state.messageTimer = 2;
-  }
-  stepPlayer(state, input, acts, dt, audio);
-  stepTraffic(state, random, dt);
-  const outcome = stepPolice(state, random, dt, audio);
-  if (outcome === 'busted') {
-    bustPlayer(state);
-    audio.bad();
-    return 'busted';
-  }
-  if (outcome === 'wasted') {
-    wastePlayer(state);
-    audio.bad();
-    return 'wasted';
-  }
-  stepMissions(state, dt, audio);
-  // Fog thickens at dawn and after rain; the night is the darkest watch.
-  state.fog = 0.45 + 0.2 * Math.sin(state.time * 0.01);
-  // Engine and siren follow the action.
-  const veh = state.player.vehicle;
-  if (veh && !audio.muted) {
-    audio.startEngine();
-    audio.setEngine(Math.abs(veh.speed) / 460, true);
-  } else {
-    audio.setEngine(0, false);
-  }
-  if (state.wanted > 0 && !audio.muted) audio.startSiren();
-  else audio.stopSiren();
-  return null;
-}
+// Continue a saved run when there is one.
+const saved = readSave();
+if (saved) world.applySave(saved);
+window.__bayou = { state: world.state, world, objective: () => world.objective() };
 
 function runShot(name) {
-  // The chase scene flees from the law; the others follow the mission autopilot.
-  const pilot = name === 'chase' ? fleePilot : null;
-  const step = () => {
-    // The world steps first and the pilot steers after it, for the same reason
-    // as in the game loop: an ENTER queued while on foot must not still be in
-    // flight the step the player climbs in. The pilot's held keys carry into
-    // the next step.
-    stepWorld(STEP, readActions());
-    if (pilot) pilot(state, input, STEP);
-    else autopilot(state, input, STEP);
-  };
-  const scene = stageShot(name, state, step);
-  // The scene staged itself by calling step() above; paint it twice.
+  const scene = stageShot(name, world);
   let painted = 0;
   function paint() {
-    renderer.draw(state, scene.screen, { best, muted: audio.muted });
+    renderer.draw(world.state, scene.screen, scene.best, world.objective());
     painted += 1;
     if (painted < 2) requestAnimationFrame(paint);
     else window.__shotReady = true;
@@ -122,102 +81,116 @@ function runShot(name) {
 }
 
 function runGame() {
+  const input = createInput(canvas);
   let screen = SCREEN_TITLE;
+  window.__bayou.screen = () => screen;
+  let best = readBest();
   let accumulator = 0;
   let last = performance.now();
-  let saveTimer = 0;
-  let autoMode = false; // test hook: the mission autopilot drives while the game runs
-  let doneShown = false;
+  // Enter is a one-shot press: take it once per frame and hand it to the first sub-step.
+  let pendingEnter = false;
 
   function announce(message) {
     status.textContent = message;
   }
 
   function startGame() {
+    accumulator = 0;
     screen = SCREEN_PLAY;
-    announce('Playing. Remy owes Mama Odette — get moving.');
-    audio.resume();
+    audio.unlock();
+    announce(`Playing. ${world.objective().text}`);
+  }
+
+  function newGame() {
+    world.reset();
+    writeSave();
+    startGame();
+  }
+
+  function endRun(nextScreen, message) {
+    screen = nextScreen;
+    const cash = world.state.cash;
+    if (cash > best) { best = cash; saveBest(best); }
+    writeSave();
+    announce(message);
+  }
+
+  function handleActions(actions) {
+    if (actions & ACTION_MUTE) audio.setMuted(!audio.isMuted());
+    if (actions & ACTION_ENTER) pendingEnter = true;
+    if (screen === SCREEN_TITLE) {
+      if (actions & ACTION_NEW) newGame();
+      else if (actions & ACTION_CONFIRM) startGame();
+      return;
+    }
+    if (screen === SCREEN_PLAY) {
+      if (actions & ACTION_PAUSE) { screen = SCREEN_PAUSED; announce('Paused.'); }
+      return;
+    }
+    if (screen === SCREEN_PAUSED) {
+      if (actions & (ACTION_PAUSE | ACTION_CONFIRM)) { screen = SCREEN_PLAY; announce('Playing.'); }
+      return;
+    }
+    if (actions & ACTION_CONFIRM) {
+      if (screen === SCREEN_DONE) { screen = SCREEN_PLAY; announce('Playing.'); return; }
+      // Busted / wasted: bail out, half the cash gone, back at the motel on foot.
+      world.state.cash = Math.floor(world.state.cash / 2);
+      const p = world.state.player;
+      if (p.vehicle) { p.vehicle.active = false; p.vehicle = null; }
+      p.onFoot = true;
+      p.x = 630; p.y = 1980; p.angle = -Math.PI / 2; p.speed = 0;
+      world.state.wanted = 0;
+      world.state.bustTimer = 0;
+      // Restart the current mission from its first step.
+      world.debug.setMission(world.state.missionIndex);
+      writeSave();
+      startGame();
+    }
+  }
+
+  function step() {
+    if (screen === SCREEN_TITLE) {
+      world.step(STEP, { held: {}, enter: false }, true);
+      return;
+    }
+    const enter = pendingEnter;
+    pendingEnter = false;
+    const held = input.held;
+    const events = world.step(STEP, { held, enter }, false);
+    if (events & EVENT_BUSTED) {
+      audio.busted();
+      endRun(SCREEN_BUSTED, 'Busted. The law caught Remy.');
+    } else if (events & EVENT_WASTED) {
+      audio.crash();
+      endRun(SCREEN_WASTED, 'Wasted. The ride went up in smoke.');
+    } else if (events & EVENT_ALL_DONE) {
+      audio.mission();
+      endRun(SCREEN_DONE, 'All missions done.');
+    } else {
+      if (events & EVENT_PICKUP) audio.pickup();
+      if (events & EVENT_MISSION) audio.mission();
+      if (events & EVENT_CRASH) audio.crash();
+      if (events & (EVENT_CASH | EVENT_MISSION)) writeSave();
+    }
+    audio.update(world.state.player.speed, world.state.wanted);
   }
 
   function frame(now) {
     requestAnimationFrame(frame);
     accumulator += Math.min((now - last) / 1000, MAX_FRAME);
     last = now;
-    const acts = readActions();
-    if (acts.mute) {
-      audio.setMuted(!audio.muted);
-      state.message = audio.muted ? 'Sound off.' : 'Sound on.';
-      state.messageTimer = 2;
-      acts.mute = false; // handled once here; the world step must not toggle it again
-    }
-    if (screen === SCREEN_TITLE) {
-      if (acts.confirm) startGame();
-      // The town lives behind the title.
-      while (accumulator >= STEP) {
-        stepTraffic(state, random, STEP);
-        state.time += STEP;
+    handleActions(input.takeActions());
+    if (screen === SCREEN_TITLE || screen === SCREEN_PLAY) {
+      while (accumulator >= STEP && (screen === SCREEN_TITLE || screen === SCREEN_PLAY)) {
+        step();
         accumulator -= STEP;
       }
-    } else if (screen === SCREEN_PLAY) {
-      if (acts.pause) {
-        screen = SCREEN_PAUSED;
-        announce('Paused.');
-      } else {
-        let outcome = null;
-        let firstStep = true;
-        while (accumulator >= STEP && screen === SCREEN_PLAY) {
-          outcome = stepWorld(STEP, firstStep ? acts : { confirm: false, pause: false, enter: false, refuel: false, mute: false });
-          firstStep = false;
-          accumulator -= STEP;
-          if (outcome === 'busted') {
-            screen = SCREEN_BUSTED;
-            announce('Busted. The sheriff takes you in.');
-            audio.stopSiren();
-            audio.stopEngine();
-          } else if (outcome === 'wasted') {
-            screen = SCREEN_WASTED;
-            announce('Wasted. You went down in the swamp.');
-            audio.stopSiren();
-            audio.stopEngine();
-          }
-        }
-        // The autopilot steers from the state after this frame's steps: if it
-        // ran before them, an ENTER queued while on foot would still be in
-        // flight the frame the player climbs in, and would climb straight back
-        // out again. Its held keys carry into the next frame's steps.
-        if (autoMode && screen === SCREEN_PLAY) autopilot(state, input, STEP);
-        if (screen === SCREEN_PLAY && state.missionIndex >= 5 && !doneShown) {
-          doneShown = true;
-          screen = SCREEN_DONE;
-          announce('All missions done. The bayou is yours.');
-          audio.jingle();
-        }
-        saveTimer += 1;
-        if (saveTimer > 900) {
-          saveTimer = 0;
-          saveGame(state);
-          best = Math.max(best, state.cash);
-        }
-      }
-    } else if (screen === SCREEN_PAUSED) {
-      if (acts.pause || acts.confirm) {
-        screen = SCREEN_PLAY;
-        announce('Playing.');
-      }
-      accumulator = 0;
-    } else if (screen === SCREEN_BUSTED || screen === SCREEN_WASTED || screen === SCREEN_DONE) {
-      if (acts.confirm) {
-        screen = SCREEN_PLAY;
-        announce('Playing.');
-      }
-      accumulator = 0;
     } else {
       accumulator = 0;
     }
-    renderer.draw(state, screen, { best, muted: audio.muted });
+    renderer.draw(world.state, screen, best, world.objective());
   }
 
-  // Leaving the tab pauses a running game rather than letting the law close in unseen.
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && screen === SCREEN_PLAY) {
       screen = SCREEN_PAUSED;
@@ -225,51 +198,7 @@ function runGame() {
     }
   });
 
-  // Debug / play-test API: the tests drive the real game through this.
-  window.BAYOU = {
-    state,
-    input,
-    screen: () => screen,
-    start: () => startGame(),
-    teleport(x, y) {
-      const p = state.player;
-      if (p.vehicle) {
-        p.vehicle.x = x;
-        p.vehicle.y = y;
-        p.vehicle.speed = 0;
-      }
-      p.x = x;
-      p.y = y;
-    },
-    setMission(index, stage = 0) {
-      state.missionIndex = index;
-      state.missionStage = stage;
-      state.missionData = {};
-    },
-    setWanted(n) {
-      state.wanted = n;
-      state.wantedTimer = 0;
-    },
-    setCash(n) {
-      state.cash = n;
-    },
-    enterVehicle() {
-      input.queueAction(ACTION_ENTER);
-    },
-    setAuto(v) {
-      autoMode = !!v;
-      if (!autoMode) input.releaseAll();
-    },
-    reset() {
-      resetWorld(state, createRandom(seed));
-      const again = loadGame();
-      if (again) applySave(state, again);
-      doneShown = false;
-      screen = SCREEN_TITLE;
-    },
-  };
-
-  announce('Bayou. Press Space or click to start.');
+  announce('Bayou. Press Space to play.');
   requestAnimationFrame(frame);
 }
 

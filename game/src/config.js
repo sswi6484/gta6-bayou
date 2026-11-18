@@ -1,208 +1,165 @@
-// Bayou — every tuning number, colour and named place in one place.
-// The world is a fixed 3200x2400 swamp river-delta town; the renderer scales the
-// camera view to the window, so no rule below depends on the screen size.
-
+// Bayou — tuning, palette and the whole map in one place. The world is 3200x2400; the camera
+// follows the player and the renderer scales the 1280x720 view to the window.
 export const WORLD = { width: 3200, height: 2400 };
 
-/** The simulation's fixed step, in seconds: 60 updates a second whatever the display's rate. */
-export const STEP = 1 / 60;
-
-/** Water: the river, the bayou channels and the backwater pond. Boats live here; cars and feet do not. */
-export const WATER = [
-  { x: 1500, y: 0, w: 350, h: 2400, name: 'river' },          // main river, north-south
-  { x: 0, y: 1500, w: 1500, h: 150, name: 'west bayou' },      // west bayou channel
-  { x: 1850, y: 700, w: 1350, h: 120, name: 'east bayou' },    // east bayou channel
-  { x: 300, y: 1980, w: 1250, h: 340, name: 'backwater' },     // southern backwater pond (joins the river)
-];
-
-/** Roads: drivable land strips. Bridges are the road strips that cross the river. */
+// Roads are axis-aligned rects; driving on one is full speed, off-road is slower.
 export const ROADS = [
-  { x: 0, y: 1000, w: 3200, h: 80, name: 'Main Street' },
-  { x: 1300, y: 0, w: 80, h: 2400, name: 'West Levee Road' },
-  { x: 1950, y: 0, w: 80, h: 2400, name: 'East Levee Road' },
-  { x: 500, y: 800, w: 80, h: 1000, name: 'Cypress Street' },
-  { x: 900, y: 800, w: 80, h: 1000, name: 'Magnolia Street' },
-  { x: 2400, y: 400, w: 80, h: 1600, name: 'Mill Road' },
-  { x: 2800, y: 400, w: 80, h: 1600, name: 'Depot Street' },
-  { x: 0, y: 2000, w: 3200, h: 70, name: 'South Bridge Road' },
-  { x: 200, y: 400, w: 1100, h: 60, name: 'Grove Dirt Road' },
+  // horizontal roads
+  { x: 0, y: 200, w: 3200, h: 90 }, { x: 0, y: 700, w: 3200, h: 90 },
+  { x: 0, y: 1200, w: 3200, h: 90 }, { x: 0, y: 1700, w: 3200, h: 90 },
+  { x: 0, y: 2200, w: 3200, h: 90 },
+  // vertical roads
+  { x: 400, y: 0, w: 90, h: 2400 }, { x: 1000, y: 0, w: 90, h: 2400 },
+  { x: 2200, y: 0, w: 90, h: 2400 }, { x: 2800, y: 0, w: 90, h: 2400 },
+  // levee roads along both river banks
+  { x: 1380, y: 0, w: 80, h: 2400 }, { x: 1880, y: 0, w: 80, h: 2400 },
 ];
 
-/** Buildings: solid rectangles the player, cars and boats cannot pass through. */
-export const BUILDINGS = [
-  // Riverfront shanty town (west bank)
-  { x: 1050, y: 880, w: 90, h: 70, name: "Mama Odette's Shack", kind: 'shack' },
-  { x: 1150, y: 1150, w: 80, h: 60, name: 'Stilt House 1', kind: 'stilt' },
-  { x: 1150, y: 1280, w: 80, h: 60, name: 'Stilt House 2', kind: 'stilt' },
-  { x: 1150, y: 1410, w: 80, h: 60, name: 'Stilt House 3', kind: 'stilt' },
-  { x: 600, y: 880, w: 110, h: 80, name: 'Bayou Church', kind: 'church' },
-  { x: 750, y: 1180, w: 120, h: 80, name: 'Crawdad Cafe', kind: 'cafe' },
-  { x: 400, y: 1180, w: 100, h: 70, name: 'Bait Shop', kind: 'shop' },
-  // Shrimp docks (east bank of the river)
-  { x: 1900, y: 1820, w: 140, h: 90, name: 'Shrimp Dock Warehouse', kind: 'dock' },
-  { x: 2100, y: 1900, w: 100, h: 70, name: 'Ice House', kind: 'dock' },
-  // East town
-  { x: 2550, y: 560, w: 170, h: 110, name: 'Old Sugar Mill', kind: 'mill' },
-  { x: 2500, y: 1120, w: 130, h: 90, name: 'Crawdad Motel', kind: 'motel' },
-  { x: 2350, y: 1120, w: 120, h: 80, name: "Sheriff's Office", kind: 'sheriff' },
-  { x: 2650, y: 1300, w: 110, h: 80, name: 'General Store', kind: 'store' },
-  { x: 2850, y: 900, w: 100, h: 70, name: 'Depot', kind: 'depot' },
-  // Gas & Go on Main Street (west)
-  { x: 640, y: 1120, w: 120, h: 70, name: 'Gas & Go', kind: 'gas' },
+// Water: the river band plus bayou ponds and backwater channels. Boats live here; cars and
+// pedestrians cannot enter (bridges cross the river).
+export const WATER = [
+  { x: 1480, y: 0, w: 360, h: 2400 }, // the river
+  { x: 150, y: 850, w: 240, h: 300 }, { x: 1120, y: 1800, w: 240, h: 220 }, // west ponds
+  { x: 2300, y: 380, w: 250, h: 280 }, { x: 2320, y: 1900, w: 440, h: 300 }, // east ponds
+  { x: 1100, y: 950, w: 280, h: 120 }, // backwater channel west -> levee road
+  { x: 1960, y: 1500, w: 220, h: 120 }, // backwater channel east -> river
 ];
 
-/** Named places the missions and HUD point at. */
-export const PLACES = {
-  odette: { x: 1100, y: 960, label: "Mama Odette's Shack" },
-  stiltRow: { x: 1190, y: 1350, label: 'Stilt-House Row' },
-  docks: { x: 1880, y: 1890, label: 'Shrimp Docks' },
-  mill: { x: 2635, y: 640, label: 'Old Sugar Mill' },
-  motel: { x: 2565, y: 1165, label: 'Crawdad Motel' },
-  gas: { x: 700, y: 1160, label: 'Gas & Go' },
-  marina: { x: 1470, y: 1900, label: 'Marina' },
-  sheriff: { x: 2410, y: 1180, label: "Sheriff's Office" },
-  grove: { x: 700, y: 500, label: 'Cypress Grove' },
-  backwater: { x: 800, y: 2120, label: 'Backwater' },
-};
-
-/** Bridges: road decks over the water, where a car crosses and a boat cannot. */
+// Bridges over the river (land the player can walk/drive across).
 export const BRIDGES = [
-  { x: 1500, y: 1000, w: 350, h: 80, name: 'Main Street Bridge' },
-  { x: 1500, y: 2000, w: 350, h: 70, name: 'South Bridge' },
-  { x: 1300, y: 1500, w: 80, h: 150, name: 'West Levee Bridge' },
-  { x: 500, y: 1500, w: 80, h: 150, name: 'Cypress Bridge' },
-  { x: 900, y: 1500, w: 80, h: 150, name: 'Magnolia Bridge' },
-  { x: 1950, y: 700, w: 80, h: 120, name: 'East Levee Bridge' },
-  { x: 2400, y: 700, w: 80, h: 120, name: 'Mill Road Bridge' },
-  { x: 2800, y: 700, w: 80, h: 120, name: 'Depot Bridge' },
+  { x: 1440, y: 260, w: 440, h: 110 }, { x: 1440, y: 760, w: 440, h: 110 },
+  { x: 1440, y: 1260, w: 440, h: 110 }, { x: 1440, y: 1760, w: 440, h: 110 },
+  { x: 1440, y: 2120, w: 440, h: 110 },
 ];
 
-/** The sheriff checkpoint on the Main Street bridge: crossing it with contraband raises the heat. */
-export const CHECKPOINT = { x: 1560, y: 1000, w: 230, h: 80 };
-
-/** Cypress trees: solid circles, dense in the grove and scattered through the swamp. */
-/** Stash crates for mission 2, hidden in the foggy Cypress Grove. */
-export const STASH_SPOTS = [
-  { x: 350, y: 300 }, { x: 800, y: 250 }, { x: 1150, y: 550 },
-  { x: 450, y: 700 }, { x: 950, y: 180 },
+// Buildings (solid rects). Shanty town west, stilt houses east, docks, motel, warehouse, safehouse.
+export const BUILDINGS = [
+  // shanty town (west)
+  { x: 560, y: 900, w: 130, h: 100, name: 'shack' }, { x: 760, y: 900, w: 110, h: 90, name: 'shack' },
+  { x: 880, y: 900, w: 120, h: 100, name: 'shack' }, { x: 560, y: 1080, w: 120, h: 90, name: 'shack' },
+  { x: 760, y: 1080, w: 100, h: 100, name: 'shack' }, { x: 860, y: 1080, w: 130, h: 90, name: 'shack' },
+  { x: 560, y: 1300, w: 110, h: 100, name: 'shack' }, { x: 760, y: 1300, w: 120, h: 90, name: 'shack' },
+  // stilt houses (east)
+  { x: 2320, y: 900, w: 130, h: 100, name: 'stilt' }, { x: 2450, y: 900, w: 110, h: 90, name: 'stilt' },
+  { x: 2640, y: 900, w: 120, h: 100, name: 'stilt' }, { x: 2320, y: 1080, w: 120, h: 90, name: 'stilt' },
+  { x: 2450, y: 1080, w: 100, h: 100, name: 'stilt' }, { x: 2640, y: 1080, w: 130, h: 90, name: 'stilt' },
+  // landmarks
+  { x: 540, y: 2040, w: 180, h: 120, name: 'motel' }, // Mama Odette's motel (home)
+  { x: 2560, y: 330, w: 200, h: 130, name: 'warehouse' },
+  { x: 520, y: 380, w: 160, h: 110, name: 'safehouse' },
+  { x: 1960, y: 1030, w: 220, h: 90, name: 'docks' }, // shrimp docks, east bank
+  { x: 1160, y: 1080, w: 220, h: 90, name: 'docks' }, // west bank landing
 ];
 
-export const TREES = [
-  // Cypress grove (north-west) — kept clear around each stash crate, so the
-  // crates are reachable on foot between the trees.
-  ...Array.from({ length: 26 }, (_, i) => ({
-    x: 220 + ((i * 173) % 950), y: 130 + ((i * 97) % 480), r: 26 + ((i * 13) % 14),
-  })).filter((t) => !STASH_SPOTS.some((s) => Math.hypot(t.x - s.x, t.y - s.y) < 90)),
-  // Swamp south-west
-  ...Array.from({ length: 14 }, (_, i) => ({
-    x: 150 + ((i * 211) % 1200), y: 1750 + ((i * 61) % 300), r: 24 + ((i * 11) % 12),
-  })),
-  // East bayou banks
-  ...Array.from({ length: 10 }, (_, i) => ({
-    x: 2050 + ((i * 127) % 1000), y: 560 + ((i * 53) % 110), r: 22 + ((i * 7) % 10),
-  })),
-  ...Array.from({ length: 8 }, (_, i) => ({
-    x: 2100 + ((i * 149) % 900), y: 880 + ((i * 41) % 90), r: 22 + ((i * 5) % 10),
-  })),
+// Fog banks: circles where visibility collapses (drawn as haze; inside one the screen fogs).
+export const FOG_BANKS = [
+  { x: 700, y: 1000, r: 260 }, { x: 1150, y: 1900, r: 240 }, { x: 1660, y: 500, r: 220 },
+  { x: 2500, y: 600, r: 240 }, { x: 2300, y: 2050, r: 260 }, { x: 400, y: 400, r: 200 },
 ];
 
-/** The 12 swamp caches (side work, +$25 each). */
+// Parked cars (stealable) and docked boats.
+export const PARKED_CARS = [
+  { x: 480, y: 245, a: 0 }, { x: 1090, y: 745, a: 1.57 }, { x: 2290, y: 1245, a: 0 },
+  { x: 445, y: 1745, a: 1.57 }, { x: 2845, y: 745, a: 0 }, { x: 1045, y: 2245, a: 1.57 },
+  { x: 2245, y: 1745, a: 0 }, { x: 1420, y: 1245, a: 1.57 }, { x: 1920, y: 245, a: 0 },
+  { x: 640, y: 1245, a: 1.57 },
+];
+export const DOCKED_BOATS = [
+  { x: 1660, y: 420, a: 1.57 }, { x: 1660, y: 1180, a: 1.57 }, { x: 1660, y: 1980, a: 1.57 },
+];
+
+// 12 swamp caches (side work, +$25 each). All on dry land a car or walker can reach.
 export const CACHES = [
-  { x: 350, y: 300 }, { x: 800, y: 250 }, { x: 1150, y: 550 }, { x: 450, y: 700 },
-  { x: 250, y: 1600 }, { x: 600, y: 2050 }, { x: 1000, y: 2250 }, { x: 1350, y: 2100 },
-  { x: 1700, y: 350 }, { x: 2200, y: 950 }, { x: 2900, y: 1500 }, { x: 3050, y: 2100 },
+  { x: 320, y: 1250 }, { x: 900, y: 1700 }, { x: 1300, y: 500 }, { x: 2500, y: 750 },
+  { x: 2150, y: 1800 }, { x: 600, y: 350 }, { x: 2900, y: 1500 }, { x: 150, y: 1500 },
+  { x: 1950, y: 900 }, { x: 1150, y: 1650 }, { x: 2650, y: 1250 }, { x: 350, y: 2150 },
 ];
 
-/** The river time-trial gates (boat only): 6 gates down the river, 95 seconds, $150. */
+// River time-trial gates (6, in order, down the river).
 export const TRIAL_GATES = [
-  { x: 1675, y: 300 }, { x: 1675, y: 650 }, { x: 1675, y: 1000 },
-  { x: 1675, y: 1350 }, { x: 1675, y: 1700 }, { x: 1675, y: 2050 },
+  { x: 1660, y: 300 }, { x: 1660, y: 700 }, { x: 1660, y: 1100 },
+  { x: 1660, y: 1500 }, { x: 1660, y: 1900 }, { x: 1660, y: 2200 },
 ];
+export const TRIAL_TIME = 95;
+export const TRIAL_REWARD = 150;
 
-export const PLAYER = {
-  radius: 14,
-  walkSpeed: 210,
-  runSpeed: 300,
-  health: 100,
-};
-
-export const CAR = {
-  length: 52,
-  width: 26,
-  accel: 420,
-  brake: 700,
-  maxSpeed: 460,
-  reverseSpeed: 160,
-  turnRate: 2.6,
-  offRoadFactor: 0.45,
-  fuelDrain: 0.9, // per second at full throttle
-};
-
-export const BOAT = {
-  length: 58,
-  width: 26,
-  accel: 300,
-  brake: 500,
-  maxSpeed: 420,
-  reverseSpeed: 120,
-  turnRate: 1.9,
-  fuelDrain: 0.8,
-};
-
-export const WANTED_MAX = 5;
-/** Seconds with no police in sight before one star drops. */
-export const WANTED_DECAY_SECONDS = 10;
-
+// Mission scripts: goto / collect / evade / wanted steps, in order. Rewards in $.
 export const MISSIONS = [
-  { id: 1, name: 'First Haul', pay: 150, brief: 'See Mama Odette at her shack, then deliver the crate to the Stilt-House Row.' },
-  { id: 2, name: 'Fog Run', pay: 300, brief: 'Collect 5 stash crates hidden in the foggy Cypress Grove.' },
-  { id: 3, name: 'Levee Dodge', pay: 400, brief: 'Pick up at the Old Sugar Mill, deliver to the Shrimp Docks. The sheriff checkpoint on the Main Street bridge is watching — take the levee road or the river instead.' },
-  { id: 4, name: 'Hot Pursuit', pay: 600, brief: 'The law is all over you. Lose the heat, then slip into Mama Odette’s shack.' },
-  { id: 5, name: 'The Big Haul', pay: 1000, brief: 'Three drops while the heat is on: Shrimp Docks, Old Sugar Mill, Crawdad Motel.' },
+  {
+    name: '1. First Haul', reward: 150,
+    steps: [
+      { type: 'goto', x: 1300, y: 1300, text: 'Pick up the haul at the west docks' },
+      { type: 'goto', x: 630, y: 2200, text: 'Deliver it to Mama Odette at the motel' },
+    ],
+  },
+  {
+    name: '2. Fog Run', reward: 300,
+    steps: [
+      { type: 'collect', count: 5, area: { x: 750, y: 550, r: 200 }, text: 'Find 5 stash crates in the fog' },
+      { type: 'goto', x: 630, y: 2200, text: 'Deliver the stash to the motel' },
+    ],
+  },
+  {
+    name: '3. Levee Dodge', reward: 400,
+    steps: [
+      { type: 'goto', x: 2660, y: 520, text: 'Pick up the cargo at the warehouse' },
+      { type: 'wanted', level: 2, text: 'The law is onto you — take the levee road south' },
+      { type: 'goto', x: 1420, y: 1800, text: 'Slip down the levee road' },
+      { type: 'goto', x: 600, y: 540, text: 'Reach the safehouse' },
+    ],
+  },
+  {
+    name: '4. Hot Pursuit', reward: 600,
+    steps: [
+      { type: 'evade', seconds: 30, level: 3, text: 'Lose the law — survive 30 seconds at 3 stars' },
+      { type: 'goto', x: 600, y: 540, text: 'Get to the safehouse' },
+    ],
+  },
+  {
+    name: '5. The Big Haul', reward: 1000,
+    steps: [
+      { type: 'wanted', level: 2, text: 'Three drops, law on your tail — drop 1 of 3' },
+      { type: 'goto', x: 2660, y: 1800, text: 'Drop 1 of 3 — east docks' },
+      { type: 'goto', x: 900, y: 400, text: 'Drop 2 of 3 — north levee' },
+      { type: 'goto', x: 2200, y: 2200, text: 'Drop 3 of 3 — south flats' },
+      { type: 'goto', x: 630, y: 2200, text: 'Bring it home to the motel' },
+    ],
+  },
 ];
 
-export const TRIAL = { pay: 150, timeLimit: 95, gates: 6 };
-export const CACHE_PAY = 25;
+export const STEP = 1 / 60;
+export const VIEW = { width: 1280, height: 720 };
+
+export const PLAYER = { radius: 14, walkSpeed: 210, runSpeed: 300 };
+export const CAR = { accel: 520, maxSpeed: 430, offroadMax: 235, reverseMax: 160, turn: 2.7, radius: 17, hp: 100 };
+export const BOAT = { accel: 430, maxSpeed: 390, turn: 2.3, radius: 17, hp: 100 };
+export const POLICE = { accel: 520, maxSpeed: 400, turn: 3.0, ramDamage: 6, ramCooldown: 1.5 };
+export const TRAFFIC_COUNT = 8;
+export const PED_COUNT = 10;
+
+export const WANTED_DECAY_SECONDS = 12;
 
 export const PALETTE = {
-  water: '#1d4e5f',
-  waterDeep: '#14394a',
-  waterShallow: '#2a6b7d',
-  land: '#4a5d3a',
-  landDry: '#5d6b43',
-  swamp: '#3d5230',
-  road: '#5a5148',
-  roadLine: '#c9b458',
-  levee: '#6b5d4a',
-  bridge: '#7a6a52',
-  building: '#7a5c42',
-  buildingRoof: '#8a6a4a',
-  stilt: '#6b4a35',
-  tree: '#2c4a26',
-  treeDark: '#1e3319',
-  fog: 'rgba(200, 210, 200, 0.16)',
-  night: 'rgba(6, 10, 26, 0.55)',
-  player: '#f2c94c',
-  car: '#d95f4b',
-  boat: '#4fb3a9',
-  police: '#3a6fd8',
-  policeBoat: '#2f5cb8',
-  ped: '#e8dcc8',
-  hud: '#101820',
-  hudText: '#eef1f5',
-  hudMuted: '#9aa5b1',
-  gold: '#f2c94c',
-  danger: '#e5534b',
-  ok: '#58b368',
+  day: {
+    backdrop: '#0e1420', land: '#3d5a3a', landDry: '#6b7a45', road: '#3a3f47', roadLine: '#c9b458',
+    water: '#1d4e5f', waterDeep: '#14404f', bridge: '#5a4632', building: '#7a5a3a', stilt: '#6b4f30',
+    motel: '#8a6a2f', warehouse: '#5a6a7a', safehouse: '#4a6a4f', docks: '#6a5138',
+    fog: 'rgba(200,210,200,0.16)', fogDense: 'rgba(210,220,210,0.55)',
+    player: '#f2c94c', playerFoot: '#e8a33d', car: '#c94f42', boat: '#e8e0c8', police: '#2f6fb2',
+    policeBoat: '#2f6fb2', traffic: '#8a93a3', ped: '#d8c9a3', cache: '#7ee787', marker: '#ffd94d',
+    text: '#eef1f5', muted: '#b9c2cc', panel: 'rgba(16,20,28,0.88)', danger: '#e5534b', star: '#ffd94d',
+  },
+  night: {
+    backdrop: '#070a12', land: '#22331f', landDry: '#3a4226', road: '#23272f', roadLine: '#8a7a3a',
+    water: '#0f2c38', waterDeep: '#0a222c', bridge: '#3a2d1f', building: '#4a3622', stilt: '#41301d',
+    motel: '#54401c', warehouse: '#35424e', safehouse: '#2c4230', docks: '#413120',
+    fog: 'rgba(160,170,180,0.10)', fogDense: 'rgba(170,180,190,0.4)',
+    player: '#f2c94c', playerFoot: '#e8a33d', car: '#8a3328', boat: '#9a9278', police: '#1f4d80',
+    policeBoat: '#1f4d80', traffic: '#565e6c', ped: '#8a7c5e', cache: '#4a9a58', marker: '#ffd94d',
+    text: '#dfe5ec', muted: '#8a94a3', panel: 'rgba(10,13,18,0.9)', danger: '#c93a32', star: '#ffd94d',
+  },
 };
 
 export const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
-
-/** Where the save lives between visits (this browser only). */
 export const SAVE_KEY = 'bayou.save.v1';
-
-/** Fog banks drift across the swamp; each is a soft circle of mist. */
-export const FOG_BANKS = [
-  { x: 600, y: 500, r: 420 }, { x: 1200, y: 1600, r: 380 }, { x: 2400, y: 800, r: 360 },
-  { x: 800, y: 2100, r: 460 }, { x: 2800, y: 1800, r: 380 }, { x: 1700, y: 1200, r: 300 },
-];
+export const BEST_KEY = 'bayou.best.v1';
